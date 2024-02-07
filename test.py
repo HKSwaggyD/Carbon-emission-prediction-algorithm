@@ -1,0 +1,192 @@
+import pandas as pd
+import math
+""" 请你补充导入必要的包 """
+
+""" 
+    project_ElectricalPrice 
+"""
+# 加载Excel文件
+file_path = '各省电价信息.xlsx'
+electricity_data = pd.read_excel(file_path)
+
+# 显示数据的前几行以了解其结构
+print(electricity_data.head())
+
+# 从后端接收的输入数据，有地区和不同类型的用电量（单位：千瓦时）
+input_consumption = {
+    "地区": "湖南",
+    "水电": 5000,
+    "生物质": 3000,
+    "光伏": 2000,
+    "天然气": 4000,
+    "火电": 10000,
+    "风电": 2500
+}
+
+input_region = input_consumption["地区"]
+input_consumption.pop("地区")
+consumption = sum(input_consumption.values())
+
+def calculate_electricity_cost(region, consumption, category, data):
+    """
+    考虑使用类别，计算给定区域的电力成本。
+
+    :param region: 计算成本的区域。
+    :param consumption: 消耗的电量（单位：千瓦时）。
+    :param category: 使用类别（'大工业' 或 '一般工商业'）。
+    :param data: 包含电价信息的DataFrame。
+    :return: 指定区域和类别中给定消耗的电费。
+    考虑使用类别，计算给定区域的电力成本。
+    """
+    if region in data['地区'].values:
+        if category == '大工业':
+            rate = data[data['地区'] == region]['大工业（元/千瓦时）'].iloc[0]
+        elif category == '一般工商业':
+            rate = data[data['地区'] == region]['一般工商业（元/千瓦时）'].iloc[0]
+        else:
+            return "未知的电价类型。"
+
+        return rate * consumption
+    else:
+        return "未找到指定地区的电价信息。"
+
+# 用法示例
+region_example = input_region
+consumption_example = consumption
+category_example = "一般工商业"
+
+prices = calculate_electricity_cost(region_example, consumption_example, category_example, electricity_data)
+
+
+""" 
+    project_PricesPridict 
+"""
+# 加载数据集
+file_path = '绿证交易简单数据集.xlsx'
+data = pd.read_excel(file_path)
+
+# 显示数据集的前几行以了解其结构
+print(data.head())
+
+# 为模型准备数据
+# 我们将为每种类型的绿色证书创建一个模型
+unique_types = data['绿证类型'].unique()
+
+# 预测结果,使用平均增长率的简单方法
+def calculate_average_growth_rate(series):
+    # 计算一个系列的平均增长率
+    growth_rates = series.pct_change().dropna()
+    average_growth_rate = growth_rates.mean()
+    return average_growth_rate
+
+
+# 计算每种类型的平均增长率并预测未来价格
+def predict_green_certificate_prices(year):
+    predictions = {}
+    for green_type in unique_types:
+        # 过滤当前类型的数据
+        type_data = data[data['绿证类型'] == green_type].sort_values(by='年份')
+
+        # 仅使用'年份'和'平均价格（元/个）'列
+        series = type_data.set_index('年份')['平均价格（元/个）']
+
+        # 计算平均增长率
+        avg_growth_rate = calculate_average_growth_rate(series)
+
+        # 计算预测价格
+        last_price = series.iloc[-1]
+        years_to_predict = year - series.index[-1]
+        predicted_price = last_price * ((1 + avg_growth_rate) ** years_to_predict)
+
+        # 确保预测价格不为负数
+        predictions[green_type] = max(0, round(predicted_price, 2))
+
+    return predictions
+
+# 预测价格
+ave_prices = predict_green_certificate_prices(2024)
+
+future_forecast = ave_prices
+
+
+""" 
+    project_Report 
+"""
+# 假设的电价数据
+data = electricity_data
+
+# 已提供的电力成本计算函数
+def calculate_electricity_cost(region, consumption, category, data):
+    if region in data['地区'].values:
+        if category == '大工业':
+            rate = data[data['地区'] == region]['大工业（元/千瓦时）'].iloc[0]
+        elif category == '一般工商业':
+            rate = data[data['地区'] == region]['一般工商业（元/千瓦时）'].iloc[0]
+        else:
+            return "未知的电价类型。"
+
+        return rate * consumption
+    else:
+        return "未找到指定地区的电价信息。"
+
+# 假设的企业电量消耗数据
+input_consumption = input_consumption
+
+# 假设的绿色证书预测购买价格
+pp_future_forecast = future_forecast
+
+# 假设的企业所在地区
+region = region_example
+category = '一般工商业'
+
+# 计算不同类型电力的成本
+costs = {type: calculate_electricity_cost(region, consumption, category, data)
+         for type, consumption in input_consumption.items()}
+
+print("\n--------------------------------------------------\n")
+
+# 更新函数：计算包括绿色证书在内的电力总成本，并确保绿证数量为正整数
+def calculate_total_cost(costs, pp_future_forecast, input_consumption):
+    total_cost = 0
+    advice_report = ""
+    advice_greem_certs_amount = {}
+    advice_total_prices = {}
+    advice_after_discount = {}
+
+    for type, cost in costs.items():
+        if type in pp_future_forecast:
+            # 计算绿色证书的成本（数量向上取整）
+            green_certs = math.ceil(input_consumption[type] / 1000)  # 向上取整至最近的整数
+            green_cert_cost = green_certs * pp_future_forecast[type]
+            discounted_cost = cost - green_cert_cost
+
+            # 添加建议信息
+            advice_report += f"{type}：预测绿证价格 {pp_future_forecast[type]}元/个，"
+            advice_report += f"需要购买 {green_certs} 个绿证，总费用 {green_cert_cost}元，"
+            advice_greem_certs_amount[type] = green_certs
+            advice_total_prices[type] = green_cert_cost
+            advice_report += f"优惠后电力成本 {discounted_cost}元。\n"
+            advice_after_discount[type] = discounted_cost
+
+            # 更新总成本
+            total_cost += max(discounted_cost, 0)  # 防止成本成为负数
+        else:
+            # 对于没有绿证的电力类型
+            advice_report += f"{type}：无需购买绿证，电力成本 {cost}元。\n"
+            total_cost += cost
+
+    return total_cost, advice_report, advice_greem_certs_amount, advice_total_prices, advice_after_discount
+
+# 再次运行更新后的程序以计算总成本和生成建议报告
+total_cost, advice_report, advice_greem_certs_amount, advice_total_prices, advice_after_discount = calculate_total_cost(costs, pp_future_forecast, input_consumption)
+
+print("2024年预测的各类型绿证交易价格：", future_forecast)
+print("各类型用电成本", costs)
+print("总用电成本：", prices, "元")
+print("优惠后用电电成本：", total_cost, "元")
+print("需要购买绿证数量：\n", advice_greem_certs_amount)
+print("各类绿证总费用：\n", advice_total_prices)
+print("优惠后各类电力成本：\n", advice_after_discount)
+print()
+print("-----------------------------------决策报告------------------------------------")
+print(advice_report)
